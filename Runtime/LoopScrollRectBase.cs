@@ -1191,6 +1191,11 @@ namespace UnityEngine.UI
             UpdatePrevData();
         }
 
+        public void ResetContentConstraintCount()
+        {
+            m_ContentConstraintCountInit = false;
+        }
+
         protected float NewItemAtStart()
         {
             if (totalCount >= 0 && itemTypeStart - contentConstraintCount < 0)
