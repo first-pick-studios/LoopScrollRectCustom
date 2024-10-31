@@ -1041,6 +1041,11 @@ namespace UnityEngine.UI
             UpdatePrevData();
         }
 
+        public void ResetContentConstraintCount()
+        {
+            m_ContentConstraintCountInit = false;
+        }
+
         protected float NewItemAtStart(bool includeSpacing = true)
         {
             if (totalCount >= 0 && itemTypeStart - contentConstraintCount < 0)
