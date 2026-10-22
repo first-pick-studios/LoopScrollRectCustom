@@ -793,7 +793,8 @@ namespace UnityEngine.UI
             ToCenter,
 
             /// <summary>
-            /// Scroll until specified cell appears in viewport
+            /// Scroll only as far as needed to fully reveal the specified cell.
+            /// The absolute offset is used as padding from the viewport edge.
             /// </summary>
             JustAppear,
         }
@@ -824,11 +825,6 @@ namespace UnityEngine.UI
             if (time <= 0)
             {
                 Debug.LogErrorFormat("invalid time {0}", time);
-                return;
-            }
-            if (mode == ScrollMode.JustAppear)
-            {
-                Debug.LogErrorFormat("scroll mode {0} not supported yet.", mode);
                 return;
             }
             StopAllCoroutines();
@@ -870,7 +866,13 @@ namespace UnityEngine.UI
             }
             if (direction == LoopScrollRectDirection.Horizontal)
                 dist = -dist;
-            dist += offset;
+            if (mode == ScrollMode.JustAppear && index >= itemTypeStart && index < itemTypeEnd)
+            {
+                m_ViewBounds = new Bounds(viewRect.rect.center, viewRect.rect.size);
+                dist = GetJustAppearDelta(GetBounds4Item(index), Mathf.Abs(offset));
+            }
+            else if (mode != ScrollMode.JustAppear)
+                dist += direction == LoopScrollRectDirection.Horizontal ? -offset : offset;
             StartCoroutine(ScrollToCellCoroutine(index, Mathf.Abs(dist) / time, offset, mode));
         }
 
@@ -911,43 +913,22 @@ namespace UnityEngine.UI
                         {
                             delta = GetDimension(m_ViewBounds.center - m_ItemBounds.center);
                         }
-                        else // ScrollMode.FirstAppear
+                        else // ScrollMode.JustAppear
                         {
-                            float min_delta = GetDimension(m_ViewBounds.min - m_ItemBounds.min);
-                            float max_delta =  GetDimension(m_ViewBounds.max - m_ItemBounds.max);
-                            if (direction == LoopScrollRectDirection.Vertical)
-                            {
-                                if (min_delta > 0)
-                                {
-                                    delta = min_delta;
-                                }
-                                else if(max_delta < 0)
-                                {
-                                    delta = max_delta;
-                                }
-                            }
-                            else
-                            {
-                                if (min_delta < 0)
-                                {
-                                    delta = min_delta;
-                                }
-                                else if(max_delta > 0)
-                                {
-                                    delta = max_delta;
-                                }
-                            }
+                            delta = GetJustAppearDelta(m_ItemBounds, Mathf.Abs(offset));
                         }
-                        delta += offset;
+                        if (mode != ScrollMode.JustAppear)
+                            delta += offset;
                         // check if we cannot move on
                         if (totalCount >= 0)
                         {
+                            float edgePadding = mode == ScrollMode.JustAppear ? Mathf.Abs(offset) : 0;
                             if (delta > 0 && itemTypeEnd == totalCount)
                             {
                                 m_ItemBounds = GetBounds4Item(totalCount - 1);
                                 // reach bottom
-                                if ((direction == LoopScrollRectDirection.Vertical && m_ItemBounds.min.y > m_ViewBounds.min.y) ||
-                                    (direction == LoopScrollRectDirection.Horizontal && m_ItemBounds.max.x < m_ViewBounds.max.x))
+                                if ((direction == LoopScrollRectDirection.Vertical && m_ItemBounds.min.y > m_ViewBounds.min.y + edgePadding) ||
+                                    (direction == LoopScrollRectDirection.Horizontal && m_ItemBounds.max.x < m_ViewBounds.max.x - edgePadding))
                                 {
                                     needMoving = false;
                                     break;
@@ -956,8 +937,8 @@ namespace UnityEngine.UI
                             else if (delta < 0 && itemTypeStart == 0)
                             {
                                 m_ItemBounds = GetBounds4Item(0);
-                                if ((direction == LoopScrollRectDirection.Vertical && m_ItemBounds.max.y < m_ViewBounds.max.y) ||
-                                    (direction == LoopScrollRectDirection.Horizontal && m_ItemBounds.min.x > m_ViewBounds.min.x))
+                                if ((direction == LoopScrollRectDirection.Vertical && m_ItemBounds.max.y < m_ViewBounds.max.y - edgePadding) ||
+                                    (direction == LoopScrollRectDirection.Horizontal && m_ItemBounds.min.x > m_ViewBounds.min.x + edgePadding))
                                 {
                                     needMoving = false;
                                     break;
@@ -998,6 +979,26 @@ namespace UnityEngine.UI
             }
             StopMovement();
             UpdatePrevData();
+        }
+
+        private float GetJustAppearDelta(Bounds itemBounds, float padding)
+        {
+            if (direction == LoopScrollRectDirection.Vertical)
+            {
+                float minDelta = m_ViewBounds.min.y + padding - itemBounds.min.y;
+                if (minDelta > 0)
+                    return minDelta;
+
+                float maxDelta = m_ViewBounds.max.y - padding - itemBounds.max.y;
+                return maxDelta < 0 ? maxDelta : 0;
+            }
+
+            float horizontalMinDelta = itemBounds.min.x - (m_ViewBounds.min.x + padding);
+            if (horizontalMinDelta < 0)
+                return horizontalMinDelta;
+
+            float horizontalMaxDelta = itemBounds.max.x - (m_ViewBounds.max.x - padding);
+            return horizontalMaxDelta > 0 ? horizontalMaxDelta : 0;
         }
 
         protected abstract void ProvideData(Transform transform, int index);
